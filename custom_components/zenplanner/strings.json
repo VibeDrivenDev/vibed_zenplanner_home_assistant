@@ -1,0 +1,113 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Sign in to ZenPlanner",
+        "description": "Use the username and password from the ZenPlanner member app.",
+        "data": {
+          "username": "Username",
+          "password": "Password"
+        }
+      },
+      "gym": {
+        "title": "Choose a gym",
+        "description": "This account belongs to more than one gym. Pick one. A second gym is a second entry.",
+        "data": {
+          "gym": "Gym"
+        }
+      },
+      "people": {
+        "title": "Choose people",
+        "description": "Each selected person gets a calendar and an upcoming sensor.",
+        "data": {
+          "enabled_person_ids": "People"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Reauthenticate",
+        "description": "Enter the password for this gym.",
+        "data": {
+          "password": "Password"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Username or password was not accepted.",
+      "password_expired": "The password has expired. Change it in ZenPlanner, then try again.",
+      "first_time_user": "Finish first-time setup in ZenPlanner, then try again.",
+      "cannot_connect": "ZenPlanner did not answer.",
+      "wrong_gym": "That password signed in to a different gym.",
+      "unknown": "Something went wrong."
+    },
+    "abort": {
+      "already_configured": "This gym is already configured.",
+      "reauth_successful": "Reauthentication succeeded.",
+      "cannot_connect": "ZenPlanner did not answer.",
+      "unknown": "Something went wrong.",
+      "invalid_auth": "Username or password was not accepted."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "People",
+        "description": "Turn a person on to add their calendar and sensor. Turn them off to remove those entities.",
+        "data": {
+          "enabled_person_ids": "People"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "ZenPlanner did not answer.",
+      "invalid_auth": "Sign in again."
+    },
+    "abort": {
+      "cannot_connect": "ZenPlanner did not answer.",
+      "unknown": "Something went wrong."
+    }
+  },
+  "services": {
+    "reserve": {
+      "name": "Reserve class",
+      "description": "Reserve a class for the selected person.",
+      "fields": {
+        "entity_id": {
+          "name": "Person",
+          "description": "Calendar or upcoming sensor for one person."
+        },
+        "class_id": {
+          "name": "Class",
+          "description": "Class id copied from the upcoming sensor."
+        },
+        "join_waitlist": {
+          "name": "Join waitlist",
+          "description": "After the class is full, join the waitlist. Defaults to off."
+        }
+      }
+    },
+    "cancel": {
+      "name": "Cancel class",
+      "description": "Drop a held class for the selected person.",
+      "fields": {
+        "entity_id": {
+          "name": "Person",
+          "description": "Calendar or upcoming sensor for one person."
+        },
+        "class_id": {
+          "name": "Class",
+          "description": "Class id copied from the calendar or the upcoming sensor."
+        }
+      }
+    },
+    "list_classes": {
+      "name": "List classes",
+      "description": "List classes stored for the selected person in the 14 day horizon.",
+      "fields": {
+        "entity_id": {
+          "name": "Person",
+          "description": "Calendar or upcoming sensor for one person."
+        }
+      }
+    }
+  }
+}

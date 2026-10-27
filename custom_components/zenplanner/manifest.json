@@ -1,0 +1,11 @@
+{
+  "domain": "zenplanner",
+  "name": "ZenPlanner",
+  "codeowners": [],
+  "config_flow": true,
+  "dependencies": [],
+  "documentation": "README.md",
+  "iot_class": "cloud_polling",
+  "requirements": [],
+  "version": "0.1.0"
+}
