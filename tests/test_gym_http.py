@@ -359,6 +359,29 @@ async def _login_statuses(lab: Lab) -> None:
     assert lab.entries.updates == []
 
     lab.api.organizations = [
+        {
+            "user": {"id": "u1", "firstName": "Ada", "lastName": "Lovelace"},
+            "organization": {"id": "g1", "name": "South"},
+        },
+        {
+            "user": {"id": "u3", "firstName": "Grace", "lastName": "Hopper"},
+            "organization": {"id": "g3", "name": "North School"},
+        },
+        {"user": {"id": "u4"}, "organization": {"id": "g5"}},
+        {"user": {}, "organization": {"id": "g6", "name": "No user"}},
+    ]
+    lab.api.login_status = "SUCCESS_MULTIPLE_ORGS"
+    lab.api.hits.clear()
+    nested = await gym_mod.discover(lab.hass, "ada@example.com", "secret-pass")
+    assert isinstance(nested, ChooseGym)
+    assert [(item.org_id, item.user_id, item.label) for item in nested.organizations] == [
+        ("g1", "u1", "Ada Lovelace · South"),
+        ("g3", "u3", "Grace Hopper · North School"),
+        ("g5", "u4", "g5"),
+    ]
+    assert lab.api.matching("/profiles/current") == []
+
+    lab.api.organizations = [
         {"userId": "u1", "organization": {"id": "g1", "name": "South"}},
         {"userId": None, "organization": {"id": "g2", "name": "Drop me"}},
         {"userId": "u3", "organization": {"id": "g3", "schoolName": "North School"}},

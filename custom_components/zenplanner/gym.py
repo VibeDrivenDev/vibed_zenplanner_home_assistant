@@ -974,8 +974,15 @@ def _one_org(row: object) -> OrgChoice | None:
     if not isinstance(org, dict):
         return None
     org_id = org.get("id")
-    user_id = row.get("userId")
+    user = row.get("user") if isinstance(row.get("user"), dict) else {}
+    user_id = user.get("id") or row.get("userId")
     if not org_id or not user_id:
         return None
-    label = org.get("name") or org.get("schoolName") or str(org_id)
-    return OrgChoice(OrganizationId(str(org_id)), UserId(str(user_id)), str(label))
+    org_name = org.get("name") or org.get("schoolName") or str(org_id)
+    person = " ".join(
+        part.strip()
+        for part in (user.get("firstName"), user.get("lastName"))
+        if isinstance(part, str) and part.strip()
+    )
+    label = f"{person} · {org_name}" if person else str(org_name)
+    return OrgChoice(OrganizationId(str(org_id)), UserId(str(user_id)), label)
