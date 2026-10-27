@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
@@ -65,6 +66,7 @@ class Api:
     def __init__(self) -> None:
         self.hits: list[Hit] = []
         self.login_status = "SUCCESS"
+        self.login_http_status = 200
         self.login_token = "access-a"
         self.login_refresh = "refresh-a"
         self.organizations: list[dict] = [
@@ -122,7 +124,8 @@ class Api:
                     "token": self.login_token,
                     "refreshToken": self.login_refresh,
                     "organizationUsers": self.organizations,
-                }
+                },
+                status=self.login_http_status,
             )
         if path.endswith("/profiles/current"):
             return self._profile(hit)
@@ -599,3 +602,42 @@ async def _cancel(lab: Lab) -> None:
     assert any(hit.method == "DELETE" for hit in lab.api.hits)
     with pytest.raises(HoldRemains):
         await gym.cancel(PersonId("ada"), ClassId("c1"))
+
+
+def test_auth_failure_logs_the_branch_and_not_the_secrets(caplog: pytest.LogCaptureFixture) -> None:
+    caplog.set_level(logging.WARNING, logger="custom_components.zenplanner.gym")
+
+    async def check(lab: Lab) -> None:
+        assert lab.hass is not None
+        lab.api.login_status = "PASSWORD_INCORRECT"
+        failed = await gym_mod.discover(lab.hass, "ada@example.com", "secret-pass")
+        assert isinstance(failed, AuthFailed)
+        assert failed.reason == "invalid_auth"
+
+        lab.api.login_status = "SUCCESS"
+        lab.api.organizations = []
+        unusable = await gym_mod.discover(lab.hass, "ada@example.com", "secret-pass")
+        assert isinstance(unusable, AuthFailed)
+        assert unusable.reason == "invalid_auth"
+
+        lab.api.organizations = [
+            {
+                "userId": "user-1",
+                "organization": {"id": "part-1", "name": "South Gym"},
+            }
+        ]
+        lab.api.login_http_status = 401
+        rejected = await gym_mod.discover(lab.hass, "ada@example.com", "secret-pass")
+        assert isinstance(rejected, AuthFailed)
+        assert rejected.reason == "invalid_auth"
+
+    run(check)
+    text = caplog.text
+    assert "ZenPlanner auth login_status status=PASSWORD_INCORRECT" in text
+    assert "ZenPlanner auth login_account_unusable gym=missing" in text
+    assert "ZenPlanner auth http_401" in text
+    assert "path=/auth/v1/login" in text
+    assert "ZenPlanner auth login_rejected" in text
+    assert "secret-pass" not in text
+    assert "access-a" not in text
+    assert "refresh-a" not in text

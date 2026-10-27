@@ -9,7 +9,7 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, replace
 from datetime import datetime
 from typing import Any, Literal
-from urllib.parse import quote
+from urllib.parse import quote, urlparse
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import aiohttp
@@ -66,6 +66,27 @@ from .models import (
 )
 
 _LOGGER = logging.getLogger(__name__)
+
+
+def _log_auth(event: str, **details: str) -> None:
+    """Record an auth failure. Details are labels such as a status or present/missing."""
+    extra = " ".join(f"{key}={value}" for key, value in details.items())
+    if extra:
+        _LOGGER.warning("ZenPlanner auth %s %s", event, extra)
+        return
+    _LOGGER.warning("ZenPlanner auth %s", event)
+
+
+def _status_label(status: object) -> str:
+    if isinstance(status, str):
+        return status[:80]
+    if status is None:
+        return "missing"
+    return type(status).__name__
+
+
+def _presence(value: object) -> str:
+    return "present" if value else "missing"
 
 _AUTH_ORIGIN = "https://memberappv220.zenplanner.com"
 _API_ORIGIN = "https://memberappapiv220.zenplanner.com"
@@ -329,6 +350,7 @@ class _Api:
                 allow_reauth=False,
             )
         if status == 401:
+            _log_auth("http_401", method=method, path=urlparse(url).path, mode=mode)
             raise ConfigEntryAuthFailed("ZenPlanner denied the token")
         if status == 404 and mode == "delete":
             return None
@@ -389,7 +411,8 @@ class _Api:
         )
         status = body.get("status") if isinstance(body, dict) else None
         if status != "SUCCESS":
-            raise ConfigEntryAuthFailed(str(status or "invalid_auth"))
+            _log_auth("password_login", status=_status_label(status))
+            raise ConfigEntryAuthFailed("ZenPlanner denied the password login")
 
     async def login(self, org_id: str, user_id: str | None) -> Any:
         account = self._pair.account
@@ -498,6 +521,7 @@ async def discover(
     except CannotConnect:
         raise
     except ConfigEntryAuthFailed:
+        _log_auth("login_rejected")
         return AuthFailed("invalid_auth")
     except ApiError as err:
         raise CannotConnect("ZenPlanner did not answer") from err
@@ -505,21 +529,32 @@ async def discover(
         raise CannotConnect("ZenPlanner did not answer")
     status = body.get("status")
     if status == "SUCCESS_MULTIPLE_ORGS":
-        return ChooseGym(_org_choices(body))
-    if status == "PASSWORD_EXPIRED":
-        return AuthFailed("password_expired")
-    if status == "FIRST_TIME_USER":
-        return AuthFailed("first_time_user")
+        choices = _org_choices(body)
+        if not choices:
+            _log_auth("multiple_orgs_unreadable")
+        return ChooseGym(choices)
     if status != "SUCCESS":
+        _log_auth("login_status", status=_status_label(status))
+        if status == "PASSWORD_EXPIRED":
+            return AuthFailed("password_expired")
+        if status == "FIRST_TIME_USER":
+            return AuthFailed("first_time_user")
         return AuthFailed("invalid_auth")
     choice = _first_org(body)
     if choice is None or not api.account.access_token or not api.account.refresh_token:
+        _log_auth(
+            "login_account_unusable",
+            gym=_presence(choice),
+            access_token=_presence(api.account.access_token),
+            refresh_token=_presence(api.account.refresh_token),
+        )
         return AuthFailed("invalid_auth")
     try:
         await api.adopt_org(choice)
         school_name, timezone_name, person = await api.profile()
         members = await api.family_members(person.family_id)
     except ConfigEntryAuthFailed:
+        _log_auth("profile_or_family_rejected")
         return AuthFailed("invalid_auth")
     except CannotConnect:
         raise
@@ -527,6 +562,11 @@ async def discover(
         raise CannotConnect("ZenPlanner did not answer") from err
     account = api.account
     if not account.access_token or not account.refresh_token:
+        _log_auth(
+            "tokens_missing_after_profile",
+            access_token=_presence(account.access_token),
+            refresh_token=_presence(account.refresh_token),
+        )
         return AuthFailed("invalid_auth")
     return Authenticated(
         partition_id=PartitionId(str(choice.org_id)),
